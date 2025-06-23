@@ -1,5 +1,5 @@
 {
-  "name": "zeus-react-h5",
+  "name": "nan-ai-client",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -57,8 +57,17 @@
     "webpack-dev-server": "^4.11.0"
   },
   "dependencies": {
+    "axios": "^1.10.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.4.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/1360151219/Nan-Ai-Client.git"
+  },
+  "bugs": {
+    "url": "https://github.com/1360151219/Nan-Ai-Client/issues"
+  },
+  "homepage": "https://github.com/1360151219/Nan-Ai-Client#readme"
 }

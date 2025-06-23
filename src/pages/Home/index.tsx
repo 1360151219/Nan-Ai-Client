@@ -28,7 +28,9 @@ const Home: React.FC = () => {
   const handleSend = () => {
     if (inputMessage.trim()) {
       const newUserMessage = formatUserMeesgae(inputMessage);
-      setMessages((prevMessages) => [...prevMessages, newUserMessage]);
+      setMessages((prevMessages) => {
+        return [...prevMessages, newUserMessage];
+      });
       setInputMessage('');
 
       // 模拟机器人回复
@@ -38,6 +40,7 @@ const Home: React.FC = () => {
       }, 1000);
     }
   };
+  console.log('消息列表：', messages);
 
   /**
    * 处理输入框内容变化的函数
