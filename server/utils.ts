@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { MessageType, Role, Message } from './types';
-export const ARK_API_KEY = '';
 
 export const formatSystemMeesgae = (input: string) => {
   return {
@@ -48,16 +47,16 @@ export const parseMessage = (msg: Message) => {
 };
 
 export async function sendModelRequest(prompt: Message[], maxRetries = 3, temperature = 0.8) {
-  const url = '';
+  const url = process.env.LLM_URL;
 
   const headers = {
     'Agw-Js-Conv': 'str',
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${ARK_API_KEY}`,
+    Authorization: `Bearer ${process.env.API_KEY}`,
   };
 
   const data = {
-    model: '', // doubao 1.6
+    model: process.env.MODEL,
     messages: prompt,
   };
   for (let attempt = 0; attempt < maxRetries; attempt++) {

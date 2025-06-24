@@ -19,3 +19,19 @@ export interface Message {
     text: string;
   }[];
 }
+
+/**
+ * 环境变量类型定义
+ */
+declare global {
+  namespace NodeJS {
+    interface ProcessEnv {
+      readonly NODE_ENV: 'development' | 'production' | 'test';
+      readonly API_KEY: string;
+      readonly LLM_URL: string;
+      readonly MODEL: string;
+    }
+  }
+}
+
+export {};

@@ -1,7 +1,12 @@
 import * as http from 'http';
 import { IncomingMessage, ServerResponse } from 'http';
 import { MCPClient } from './mcp_client';
-import { sendModelRequest } from './utils';
+import dotenv from 'dotenv';
+import path from 'path';
+// 单独配环境变量路径
+dotenv.config({
+  path: path.resolve(__dirname, '../../.env'),
+});
 
 /**
  * 简单HTTP服务器类
