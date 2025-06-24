@@ -1,60 +1,134 @@
-import { spawn, ChildProcess } from 'child_process';
-import { createInterface } from 'readline';
+import * as http from 'http';
+import { IncomingMessage, ServerResponse } from 'http';
+import { MCPClient } from './mcp_client';
+import { sendModelRequest } from './utils';
 
-const ServerConfig = {
-  filesystem: {
-    command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-filesystem', '/Applications/workplace/Nan-Ai-Client'],
-  },
-};
+/**
+ * 简单HTTP服务器类
+ * 功能：创建服务器实例并提供基础接口
+ */
+class SimpleHTTPServer {
+  private server: http.Server;
+  private port: number;
+  private mcpClient: MCPClient | null;
 
-export class MCPClient {
-  private childProcess?: ChildProcess; // 使用 definite assignment assertion
-  private timeout: number;
-  private requestAbortController?: AbortController;
-
-  constructor(timeout: number = 30000) {
-    this.timeout = timeout;
-    this.initializeStdioConnection();
-    process.on('exit', () => this.close());
+  /**
+   * 构造函数
+   * @param port - 服务器监听端口，默认3000
+   */
+  constructor(port: number = 3000) {
+    this.mcpClient = null;
+    this.port = port;
+    this.server = http.createServer(this.handleRequest.bind(this));
+    this.initialize();
   }
 
-  private initializeStdioConnection(): void {
-    const { command, args } = ServerConfig.filesystem;
-    this.childProcess = spawn(command, args);
-    if (!this.childProcess.stdout) throw new Error('Failed to create stdout stream');
-    if (!this.childProcess.stdin) throw new Error('Failed to create stdin stream');
-    if (!this.childProcess.stderr) throw new Error('Failed to create stderr stream');
-    const rl = createInterface({
-      input: this.childProcess.stdout!,
-      output: this.childProcess.stdin,
-      terminal: false,
-    });
+  /**
+   * 请求处理函数
+   * @param req - 客户端请求对象
+   * @param res - 服务器响应对象
+   */
+  private handleRequest(req: IncomingMessage, res: ServerResponse): void {
+    // 设置响应头：允许跨域和JSON格式
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    rl.on('line', (line: string) => this.handleStdioData(Buffer.from(line)));
-
-    this.childProcess.on('error', (error: Error) => {
-      console.error('Failed to start MCP Server:', error);
-    });
-
-    this.childProcess.on('close', (code: number) => {
-      console.log(`MCP Server process exited with code ${code}`);
-      this.childProcess = undefined;
-    });
-  }
-
-  private handleStdioData(data: Buffer): void {
-    const response = data.toString().trim();
-    try {
-      JSON.parse(response); // 移除未使用变量
-    } catch (error) {
-      console.error('Failed to parse stdio response:', error, 'Response:', response);
+    // 处理预检请求
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
     }
+
+    // 根路径接口
+    if (req.url === '/' && req.method === 'GET') {
+      res.statusCode = 200;
+      res.end(
+        JSON.stringify({
+          message: '欢迎使用简单HTTP服务器',
+          status: 'running',
+          timestamp: new Date().toISOString(),
+        })
+      );
+      return;
+    }
+
+    // 测试接口：返回请求信息
+    if (req.url?.startsWith('/api/chat') && req.method === 'POST') {
+      res.statusCode = 200;
+      let requestBody = '';
+      // 收集请求体数据
+      req.on('data', (chunk: Buffer) => {
+        requestBody += chunk.toString();
+        // 防止请求体过大
+        if (requestBody.length > 1e6) {
+          res.statusCode = 413;
+          res.end(JSON.stringify({ error: '请求体过大' }));
+          req.destroy();
+        }
+      });
+      // 数据接收完成后处理
+      req.on('end', async () => {
+        try {
+          // 解析JSON格式请求体
+          const requestData = JSON.parse(requestBody) as Record<string, any>;
+
+          // 处理业务逻辑
+          const response = await this.mcpClient?.handleMessage(requestData?.query || '');
+          res.statusCode = 200;
+          res.end(
+            JSON.stringify({
+              status_code: 0,
+              data: response || '处理成功',
+            })
+          );
+        } catch (error) {
+          res.statusCode = 400;
+          res.end(
+            JSON.stringify({
+              status_code: 1,
+              error: '请求格式错误或解析失败',
+              details: error instanceof Error ? error.message : String(error),
+            })
+          );
+        }
+      });
+      return;
+    }
+
+    // 404处理
+    res.statusCode = 404;
+    res.end(
+      JSON.stringify({
+        error: '接口未找到',
+        path: req.url || 'unknown',
+        method: req.method || 'unknown',
+      })
+    );
   }
 
-  close(): void {
-    this.childProcess?.kill('SIGINT');
-    this.childProcess = undefined;
-    this.requestAbortController?.abort();
+  /**
+   * 初始化服务器
+   */
+  private initialize(): void {
+    this.mcpClient = new MCPClient();
+  }
+
+  /**
+   * 启动服务器
+   */
+  start(): void {
+    this.server.listen(this.port, () => {
+      console.log(`服务器已启动，监听端口：${this.port}，正在链接MCP Server......`);
+    });
   }
 }
+
+// 创建服务器实例并启动
+const server = new SimpleHTTPServer(3000);
+server.start();
+
+// 导出服务器实例供外部使用（如果需要）
+export default server;

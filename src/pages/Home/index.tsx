@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './index.scss';
 import { formatAssistantMeesgae, formatUserMeesgae, Message, parseMessage } from '@src/utils';
+import { sendChatMessage } from '@src/utils/api';
 
 /**
  * 主页组件，包含一个优化的聊天框应用和购物车区域
@@ -11,6 +12,8 @@ const Home: React.FC = () => {
 
   // 存储聊天消息的状态，并设置初始消息
   const [messages, setMessages] = useState<Message[]>([initialMessage]);
+  // 添加loading状态管理
+  const [isLoading, setIsLoading] = useState(false);
   // 存储输入框内容的状态
   const [inputMessage, setInputMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -25,19 +28,22 @@ const Home: React.FC = () => {
   /**
    * 处理发送消息的函数
    */
-  const handleSend = () => {
+  const handleSend = async () => {
     if (inputMessage.trim()) {
+      setIsLoading(true);
       const newUserMessage = formatUserMeesgae(inputMessage);
       setMessages((prevMessages) => {
         return [...prevMessages, newUserMessage];
       });
       setInputMessage('');
 
-      // 模拟机器人回复
-      setTimeout(() => {
-        const botResponse = formatAssistantMeesgae(`I've received your message: "${inputMessage}"`);
-        setMessages((prevMessages) => [...prevMessages, botResponse]);
-      }, 1000);
+      const response = await sendChatMessage({
+        query: inputMessage,
+      });
+
+      const botResponse = formatAssistantMeesgae(response.data);
+      setIsLoading(false);
+      setMessages((prevMessages) => [...prevMessages, botResponse]);
     }
   };
   console.log('消息列表：', messages);
@@ -69,6 +75,18 @@ const Home: React.FC = () => {
               <div className={'message'}>{parseMessage(msg)}</div>
             </div>
           ))}
+          {/* 加载中显示消息指示器 */}
+          {isLoading && (
+            <div className="message-wrapper assistant loading">
+              <div className="message">
+                <div className="typing-indicator">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              </div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
         <div className="input-area">

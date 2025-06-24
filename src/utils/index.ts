@@ -50,7 +50,7 @@ export const formatAssistantMeesgae = (input: string) => {
 
 export const parseMessage = (msg: Message) => {
   return msg.content
-    .map((c) => {
+    .map((c: any) => {
       if (c.type === 'text') {
         return c.text;
       }

@@ -1,7 +1,7 @@
 import { useRoutes } from 'react-router-dom';
 import router from '@src/routers';
 import { Link } from 'react-router-dom';
-export default function () {
+export default function App() {
   return (
     <>
       <div
@@ -13,7 +13,6 @@ export default function () {
         }}
       >
         <Link to="/">To Home</Link>
-        <Link to="demo">To Demo</Link>
       </div>
       {useRoutes(router)}
     </>
