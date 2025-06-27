@@ -2,7 +2,7 @@ import { spawn, ChildProcess } from 'child_process';
 import { createInterface } from 'readline';
 import { Message, Tool } from './types';
 import { buildSystemPrompt } from './prompt';
-import { formatAssistantMeesgae, formatUserMeesgae, sendModelRequest } from './utils';
+import { formatAssistantMeesgae, formatUserMeesgae, sendModelRequest, sendRetrievalRequest } from './utils';
 
 const ServerConfig = {
   filesystem: {
@@ -40,7 +40,9 @@ export class MCPClient {
   private requestId: number;
   private requestStack: Map<number, (erorr: any, result: any) => void>;
   private requestAbortController?: AbortController;
-  private tools: Tool[];
+  private mcp_tools: Tool[];
+  private fn_tools: Tool[];
+  private fns: Map<string, (params: { query: string }) => Promise<any>>;
 
   constructor(timeout: number = 30000) {
     this.clientInfo = {
@@ -52,7 +54,33 @@ export class MCPClient {
     this.requestId = 1;
     this.requestStack = new Map();
     this.timeout = timeout;
-    this.tools = [];
+    this.mcp_tools = [];
+    this.fn_tools = [
+      {
+        name: 'ragflow',
+        description:
+          'Search for the content related to the problem from the knowledge base. When you cannot answer directly, use ragflow to search for the answer.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'The query to search for',
+            },
+          },
+        },
+      },
+    ];
+    this.fns = new Map([
+      [
+        'ragflow',
+        async (params: { query: string }) => {
+          const { query } = params;
+          const result = await sendRetrievalRequest(query);
+          return result.chunks.map((c: any) => c.content_ltks).join('\n\r');
+        },
+      ],
+    ]);
     this.initialize();
     process.on('exit', () => this.close());
   }
@@ -98,9 +126,9 @@ export class MCPClient {
     const toolsResult = await this.sendMcpRequest({
       method: 'tools/list',
     });
-    this.tools = toolsResult.tools;
+    this.mcp_tools = this.mcp_tools.concat(toolsResult.tools);
 
-    const { systemPrompt, chatHistory } = buildSystemPrompt(this.tools);
+    const { systemPrompt, chatHistory } = buildSystemPrompt(this.mcp_tools, this.fn_tools);
     this.chatHistory = chatHistory;
     this.systemPrompt = systemPrompt;
   }
@@ -167,6 +195,7 @@ export class MCPClient {
         method: request.method,
         params: request.params,
       };
+      console.log('Mcp Server call', JSON.stringify(requestData));
       this.requestStack.set(requestId, (error, result) => {
         if (error) {
           reject(error);
@@ -181,6 +210,14 @@ export class MCPClient {
           reject(error);
         }
       });
+
+      // 超时处理
+      setTimeout(() => {
+        if (this.requestStack.has(requestId)) {
+          this.requestStack.delete(requestId);
+          reject(new Error('Request timeout'));
+        }
+      }, this.timeout);
     });
   }
 
@@ -188,19 +225,59 @@ export class MCPClient {
     const response = await sendModelRequest(prompt);
     return response;
   }
+
+  private async parseLLMResponse(response: string) {
+    try {
+      const res = JSON.parse(response) as { type: string; content?: string; tool_name?: string; params: any };
+      const { type, content = '' } = res;
+      console.log('===res', res);
+      switch (type) {
+        case 'tool_call': {
+          const { tool_name, params } = res;
+          try {
+            const toolRes = await this.sendMcpRequest({
+              method: 'tools/call',
+              params: {
+                name: tool_name,
+                arguments: params,
+              },
+            });
+            return JSON.stringify(toolRes);
+          } catch (error) {
+            return content;
+          }
+        }
+        case 'function_call': {
+          const { tool_name, params } = res;
+          if (tool_name && this.fns.has(tool_name)) {
+            const fnRes = await this.fns.get(tool_name)?.(params);
+            return await this.handleMessage(fnRes);
+          }
+          return content;
+        }
+
+        default:
+          return content;
+      }
+    } catch (error) {
+      console.error('Failed to parse LLM response:', error, 'Response:', response);
+    }
+    return response;
+  }
+
   /**
    * 处理用户消息
    * @param message 处理用户消息
    */
-  public async handleMessage(message: string) {
+  public async handleMessage(message: string): Promise<string> {
     if (!message) {
       this.chatHistory.push(formatAssistantMeesgae('请再详细描述一下您的问题哈～'));
       return '';
     }
     this.chatHistory.push(formatUserMeesgae(message));
     const response = await this.callLLM(this.chatHistory);
-    console.log('LLM Response:', response);
-    return response;
+    // 处理LLM的消息
+    return await this.parseLLMResponse(response);
   }
 
   close(): void {

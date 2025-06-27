@@ -1,10 +1,20 @@
 import { Message, Tool } from './types';
 import { formatSystemMeesgae } from './utils';
 
-export const buildSystemPrompt = (tools: Tool[]) => {
-  const toolStr = tools
+export const buildSystemPrompt = (mcpTools: Tool[], fnTools: Tool[]) => {
+  const toolStr = mcpTools
     .map((tool) => {
       return `
+工具类型：tool_call
+工具名称：${tool.name}
+工具描述：${tool.description}
+输入参数：${JSON.stringify(tool.inputSchema, null, 2)}`;
+    })
+    .join('\n');
+  const fnToolStr = fnTools
+    .map((tool) => {
+      return `
+工具类型：function_call
 工具名称：${tool.name}
 工具描述：${tool.description}
 输入参数：${JSON.stringify(tool.inputSchema, null, 2)}`;
@@ -24,15 +34,9 @@ Before performing any action, you must:
 ## Usable Tools
 ${toolStr}
 
+${fnToolStr}
+
 ## Tool Usage Rules
-
-### Tool Call Format
-
-<tool_call>
-<tool_name>{工具名称}</tool_name>
-<参数名1>参数值1</参数名1>
-<参数名2>参数值2</参数名2>
-</tool_call>
 
 ### Execution Rules
 
@@ -40,34 +44,75 @@ ${toolStr}
 2. Explore Before Acting: First gather necessary information the user may need, then summarize, and finally generate results.
 3. Complete Closed-Loop: Ensure each task has a clear start, execution, verification, and completion process.
 
-### Output Format
+### Tool Call Format
 
-1. Tool Invocation: Use the <tool_call> tag with the specified format when invoking tools.
-2. Task Completion: Use the <finish> tag only when all task completion criteria are met. The content within <finish> must be an accurate, detailed, and specific answer to the user's initial question (do not directly return raw tool results)，and the content must in Chinese.
+{
+    type: 工具类型,
+    tool_name: '工具名称',
+    params: {
+        工具参数1: '参数值',
+        工具参数2: '参数值',
+    }
+}
 
-## Examples
 
-### Tool Call Example
+## Task Completion Standards
 
-<tool_call>
-<tool_name>edit_file</tool_name>
-<path>'/Users/bytedance/Desktop/code/test/mcpTest/changelog.md'</path>
-<edits>[{oldText: 'test', newText: 'test1'},{oldText: 'test2', newText: 'test3'}]</edits>
-</tool_call>
-
-### Task Completion Standards
-
-The <finish> tag can only be used when ALL of the following conditions are met:
+The finish type can only be used when ALL of the following conditions are met:
 
 ✅ The user's question has been fully resolved.
 ✅ No unresolved issues remain.
 ✅ The result meets the user's expectations.
 
+
+## Output 
+
+1. **Must Use JSON format for all outputs**.
+2. Tool Invocation: Use tool_call type with the specified format when invoking tools.
+3. Task Completion: Use the finish type only when all task completion criteria are met. The content within the finish type must be an accurate, detailed, and specific answer to the user's initial question (do not directly return raw tool results)，and the content must in Chinese.
+
+
+## Examples
+
+### Tool Call Example
+
+  {
+    "type": "tool_call",
+    "tool_name": "read_file",
+    "params": {
+        "path": "",
+        "edits": []
+    }
+  }
+
+   {
+    "type": "function_call",
+    "tool_name": "edit_file",
+    "params": {
+        "path": "",
+        "edits": []
+    }
+  }
+
+### Task finish Example
+
+  {
+    "type": "finish",
+    "content": "任务完成"
+  }
+
+### Normal response Example
+
+{
+    "type": "text",
+    "content": "你需要提供更多信息给我去查询～"
+}
+
 ## Notes
 
 1. Strictly adhere to the thinking framework to ensure logical and systematic problem-solving.
 2. Always follow the tool call format and execution rules to avoid errors in tool invocation.
-3. Prioritize clarity and specificity in the <finish> response to directly address the user's original inquiry.`;
+3. Prioritize clarity and specificity in the finish type response to directly address the user's original inquiry.`;
 
   const chatHistory: Message[] = [formatSystemMeesgae(systemPrompt)];
 

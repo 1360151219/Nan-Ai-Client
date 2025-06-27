@@ -1,9 +1,9 @@
-import axios, { AxiosRequestConfig, AxiosError, AxiosResponse } from 'axios';
+import axios, { AxiosError, AxiosResponse } from 'axios';
 
 // 创建axios实例，配置基础URL和超时时间
 const apiClient = axios.create({
   baseURL: 'http://localhost:3000', // 后端服务器地址
-  timeout: 30000, // 30秒超时
+  timeout: 1000000,
   headers: {
     'Content-Type': 'application/json',
   },

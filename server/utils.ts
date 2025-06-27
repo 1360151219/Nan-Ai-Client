@@ -80,3 +80,50 @@ export async function sendModelRequest(prompt: Message[], maxRetries = 3, temper
   console.log('All attempts failed.');
   return null;
 }
+
+/**
+ * 发送检索请求到指定API端点
+ * @param question - 用户的问题
+ * @param datasetIds - 数据集ID数组
+ * @param documentIds - 文档ID数组
+ * @param maxRetries - 最大重试次数，默认为3
+ * @returns 返回API响应数据，失败时返回null
+ */
+export async function sendRetrievalRequest(
+  question: string,
+  datasetIds = ['6cbe3fe2518d11f0b2db56f2cbbe91c0'],
+  documentIds?: string[],
+  maxRetries = 3
+) {
+  const url = process.env.RAGFLOW_URL;
+
+  if (!url) {
+    console.error('RETRIEVAL_URL environment variable is not set');
+    return null;
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${process.env.RAGFLOW_API_KEY}`,
+  };
+
+  const data = {
+    question,
+    dataset_ids: datasetIds,
+    document_ids: documentIds,
+  };
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await axios.post(`${url}/api/v1/retrieval`, data, { headers });
+      return response.data.data;
+    } catch (e) {
+      console.error(`Attempt ${attempt + 1} failed:`, e);
+      if (attempt < maxRetries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+    }
+  }
+
+  return null;
+}
