@@ -108,25 +108,28 @@ export class MCPClient {
       rl.close();
     });
 
-    await this.sendMcpRequest({
-      method: 'initialize',
-      params: {
-        protocolVersion: '2024-11-05',
-        capabilities: {
-          roots: {
-            listChanged: true,
+    try {
+      await this.sendMcpRequest({
+        method: 'initialize',
+        params: {
+          protocolVersion: '2024-11-05',
+          capabilities: {
+            roots: {
+              listChanged: true,
+            },
+            sampling: {},
           },
-          sampling: {},
+          clientInfo: this.clientInfo,
         },
-        clientInfo: this.clientInfo,
-      },
-    });
-
-    console.log('MCP Server initialized~');
-    const toolsResult = await this.sendMcpRequest({
-      method: 'tools/list',
-    });
-    this.mcp_tools = this.mcp_tools.concat(toolsResult.tools);
+      });
+      const toolsResult = await this.sendMcpRequest({
+        method: 'tools/list',
+      });
+      console.log('MCP Server initialized~');
+      this.mcp_tools = this.mcp_tools.concat(toolsResult.tools);
+    } catch (error) {
+      console.error(error);
+    }
 
     const { systemPrompt, chatHistory } = buildSystemPrompt(this.mcp_tools, this.fn_tools);
     this.chatHistory = chatHistory;
@@ -251,7 +254,9 @@ export class MCPClient {
           const { tool_name, params } = res;
           if (tool_name && this.fns.has(tool_name)) {
             const fnRes = await this.fns.get(tool_name)?.(params);
-            return await this.handleMessage(fnRes);
+            return await this.handleMessage(
+              `调用工具${tool_name}的结果如下:${fnRes}\n请基于这个结果继续处理用户的问题。`
+            );
           }
           return content;
         }
