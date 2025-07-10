@@ -30,10 +30,33 @@ flowchart LR
 
 ## 如何实现一个Mcp Client
 
-首先我们要知道，Mcp Server实际上就是一个可执行的 python 文件或者是 js 文件。因此我们可以通过最简单的管道通信来建立链接。
+首先我们要知道，Mcp Server实际上就是一个可执行的 python 文件或者是 js 文件。我们可以通过查看源码的形式来了解它是如何进行链接的。
+
+```js
+// modulecontextprotocol/sdk/dist/shared/protocol.js
+class Protocol {
+
+  //...
+  async connect(transport) {
+        this._transport = transport;
+        this._transport.onclose = () => {
+            this._onclose();
+        };
+        this._transport.onerror = (error) => {
+            this._onerror(error);
+        };
+        this._transport.onmessage = (message) => {
+           //...
+        };
+        await this._transport.start();
+    }
+}
+
+```
+
+可见，Mcp Server 底层就是通过管道通信来实现的。因此我们可以通过管道通信来建立链接。
 
 比如如果想要链接文件系统Mcp，我们可以这样做：
-
 
 ```typescript
 const ServerConfig = {
