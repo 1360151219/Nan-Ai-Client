@@ -11,3 +11,5 @@ build
 # 日志和缓存
 logs/
 cache/
+
+.venv
