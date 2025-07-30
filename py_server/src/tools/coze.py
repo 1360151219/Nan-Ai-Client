@@ -1,30 +1,39 @@
-"""
-How to use personal access token to init Coze client.
-"""
-
-# Firstly, you need to access https://www.coze.cn/open/oauth/pats (for the coze.com environment,
-# visit https://www.coze.com/open/oauth/pats).
-#
-# Click to add a new token. After setting the appropriate name, expiration time, and
-# permissions, click OK to generate your personal access token. Please store it in a
-# secure environment to prevent this personal access token from being disclosed.
-
 import os
+from dotenv import load_dotenv
+from cozepy import COZE_CN_BASE_URL, Coze, JWTAuth, JWTOAuthApp
 
-from cozepy import COZE_CN_BASE_URL, AsyncCoze, AsyncTokenAuth, Coze, TokenAuth
+load_dotenv()
 
-coze_api_token = os.getenv("COZE_API_TOKEN")
+
 # The default access is api.coze.cn, but if you need to access api.coze.com,
 # please use base_url to configure the api endpoint to access
-coze_api_base = os.getenv("COZE_API_BASE") or COZE_CN_BASE_URL
+coze_api_base =  COZE_CN_BASE_URL
 
-# The Coze SDK offers the AuthToken class for constructing an Auth class based on a fixed
-# access token. Meanwhile, the Coze class enables the passing in of an Auth class to build
-# a coze client.
-#
-# Therefore, you can utilize the following code to initialize a coze client, or an asynchronous
-# coze client
+jwt_oauth_private_key = ""
+# client ID
+jwt_oauth_client_id = os.getenv("COZE_JWT_OAUTH_CLIENT_ID")
+# path to the private key file (usually with .pem extension)
+jwt_oauth_private_key_file_path = os.getenv("COZE_JWT_OAUTH_PRIVATE_KEY_FILE_PATH")
+# public key id
+jwt_oauth_public_key_id = os.getenv("COZE_JWT_OAUTH_PUBLIC_KEY_ID")
+
+if jwt_oauth_private_key_file_path:
+    with open(jwt_oauth_private_key_file_path, "r") as f:
+        jwt_oauth_private_key = f.read()
 
 
-# Establish a synchronous coze client by using the access_token
-coze = Coze(auth=TokenAuth(token=coze_api_token), base_url=coze_api_base)
+# The sdk offers the JWTOAuthApp class to establish an authorization for Service OAuth.
+# Firstly, it is required to initialize the JWTOAuthApp.
+
+
+jwt_oauth_app = JWTOAuthApp(
+    client_id=jwt_oauth_client_id,
+    private_key=jwt_oauth_private_key,
+    public_key_id=jwt_oauth_public_key_id,
+    base_url=coze_api_base,
+)
+
+if __name__ == "__main__":
+    # Then, it is required to call the get_access_token method to get the access token.
+    access_token = jwt_oauth_app.get_access_token()
+    print(access_token)

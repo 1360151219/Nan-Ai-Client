@@ -8,6 +8,8 @@ build
 .env.local
 .env.*.local
 
+*.pem
+
 # 日志和缓存
 logs/
 cache/
