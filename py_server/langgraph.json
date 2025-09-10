@@ -1,0 +1,13 @@
+{
+  "dockerfile_lines": [],
+  "graphs": {
+    "planner": "./src/agents/planner.py:planner",
+    "researcher": "./src/agents/researcher.py:researcher",
+    "supervisor": "./src/agents/supervisor.py:supervisor"
+  },
+  "python_version": "3.12",
+  "env": "../.env",
+  "dependencies": [
+    "."
+  ]
+}
