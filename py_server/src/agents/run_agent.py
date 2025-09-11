@@ -2,6 +2,7 @@ import uuid
 
 from langgraph.graph.state import CompiledStateGraph
 
+
 def run_agent(agent: CompiledStateGraph, message: str):
     result = agent.stream(
         {"messages": [{"role": "user", "content": message}]},
@@ -27,4 +28,3 @@ def run_agent_api(agent: CompiledStateGraph, message: str):
         print(last_message)
         message_list.append(last_message.content)
     return message_list
-

@@ -4,10 +4,8 @@ from src.tools import search
 from src.prompts.apply import apply_prompt_template
 
 researcher = create_react_agent(
-  model=chat_modal,
-  tools=[search],
-  prompt=apply_prompt_template("researcher"),
-  name="researcher"
+    model=chat_modal,
+    tools=[search],
+    prompt=apply_prompt_template("researcher"),
+    name="researcher",
 )
-
-

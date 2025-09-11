@@ -7,7 +7,7 @@ load_dotenv()
 
 # The default access is api.coze.cn, but if you need to access api.coze.com,
 # please use base_url to configure the api endpoint to access
-coze_api_base =  COZE_CN_BASE_URL
+coze_api_base = COZE_CN_BASE_URL
 
 jwt_oauth_private_key = ""
 # client ID
