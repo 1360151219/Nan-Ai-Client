@@ -2,7 +2,6 @@ from langgraph.prebuilt import create_react_agent
 from src.modals import chat_modal
 from src.tools import search
 from src.prompts.apply import apply_prompt_template
-from src.tools.update_state import add_todo
 
 
 planner = create_react_agent(

@@ -1,22 +1,76 @@
+import mimetypes
+from textwrap import indent
+from fastapi.responses import StreamingResponse
+from fastapi.routing import json
+from langchain_core.messages import HumanMessage
+from pydantic import BaseModel
 from src.agents.run_agent import run_agent, run_agent_api
 from src.agents.researcher import researcher
+from src.coze.rag import list_datasets
+from src.graph.builder import graph
 
-from flask import Flask, request, jsonify
+from fastapi import FastAPI, Request
+import uvicorn
 
-app = Flask(__name__)
+app = FastAPI()
 
 
-@app.route("/api/run_agent", methods=["POST"])
-def api_run_agent():
-    data = request.json
-    agent_name = data.get("agent_name")
-    query = data.get("query")
-    result = run_agent_api(researcher, "今天深圳天气怎么样")
-    return jsonify(result)
+@app.get("/api/datasets/list")
+def list_all_datasets():
+    """List all datasets."""
+    datasets = list_datasets()
+    # 将每个 dataset 对象转换为字典，以便进行 JSON 序列化
+    datasets_json = [dataset.model_dump() for dataset in datasets]
+    return json.dumps(datasets_json, indent=2)
+
+
+class ChatRequest(BaseModel):
+    message: str
+
+
+@app.post("/api/chat")
+async def chat_with_llm(chat_request: ChatRequest):
+    """
+    Handles a chat request with the language model, supporting streaming responses.
+
+    This endpoint receives a message from the client, sends it to the LangGraph-based
+    chatbot, and streams the response back to the client using Server-Sent Events (SSE).
+    It leverages asynchronous programming to handle the streaming efficiently.
+    """
+    print(chat_request.message)
+    message = chat_request.message
+
+    if not message:
+        return json.dumps({"error": "Message not provided"}), 400
+
+    async def event_stream():
+        """An async generator function to stream responses."""
+
+        init_state = {"messages": [HumanMessage(content=message)], "todos": []}
+        # The `stream` method returns a generator of events as they occur.
+        async for state in graph.astream(input=init_state, stream_mode="values"):
+            data_to_send = {}
+            # Check for messages and get the last one's content
+            if state.get("messages"):
+                last_message = state["messages"][-1]
+                if hasattr(last_message, "content"):
+                    data_to_send["message"] = last_message.content
+
+            # Check for and include the todos list
+            if state.get("todos"):
+                data_to_send["todos"] = state["todos"]
+
+            # Only send an event if there's a message to send
+            if data_to_send.get("message"):
+                # Format as a Server-Sent Event (SSE) with a JSON payload
+                yield f"data: {json.dumps(data_to_send, ensure_ascii=False)}\n\n"
+
+    # Return a streaming response.
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 def main():
-    run_agent(researcher, "今天深圳天气怎么样")
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 
 
 # `if __name__ == "__main__":` 语句用于判断当前脚本是否是作为主程序直接运行。
@@ -26,4 +80,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    researcher.get_graph().draw_mermaid_png(output_file_path="researcher.png")
+# researcher.get_graph().draw_mermaid_png(output_file_path="researcher.png")

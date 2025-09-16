@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from cozepy import COZE_CN_BASE_URL, Coze, JWTAuth, JWTOAuthApp
+from cozepy import COZE_CN_BASE_URL, Coze, JWTAuth, JWTOAuthApp, TokenAuth
 
 load_dotenv()
 
@@ -33,7 +33,7 @@ jwt_oauth_app = JWTOAuthApp(
     base_url=coze_api_base,
 )
 
+coze = Coze(auth=JWTAuth(oauth_app=jwt_oauth_app), base_url=coze_api_base)
+
 if __name__ == "__main__":
-    # Then, it is required to call the get_access_token method to get the access token.
-    access_token = jwt_oauth_app.get_access_token()
-    print(access_token)
+    print(coze.workspaces.list().items)
