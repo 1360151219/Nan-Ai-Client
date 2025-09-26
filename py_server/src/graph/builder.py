@@ -47,3 +47,7 @@ workflow.add_edge("chatbot", "__end__")
 
 # Compile the workflow into a runnable graph
 graph = workflow.compile()
+
+
+if __name__ == "__main__":
+    print(graph.get_graph().draw_mermaid_png(output_file_path="researcher.png"))
