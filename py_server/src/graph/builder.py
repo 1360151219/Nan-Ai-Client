@@ -6,7 +6,10 @@ from typing import Annotated, Sequence
 from langgraph.graph import StateGraph
 from src.modals.chat_modal import chat_modal
 from langgraph.graph.message import MessagesState
+from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import Field
+
+checkpointer = InMemorySaver()
 
 
 class State(MessagesState):
@@ -46,8 +49,7 @@ workflow.set_entry_point("chatbot")
 workflow.add_edge("chatbot", "__end__")
 
 # Compile the workflow into a runnable graph
-graph = workflow.compile()
-
+graph = workflow.compile(checkpointer=checkpointer)
 
 if __name__ == "__main__":
     print(graph.get_graph().draw_mermaid_png(output_file_path="researcher.png"))

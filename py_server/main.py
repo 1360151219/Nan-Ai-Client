@@ -14,13 +14,11 @@ from src.graph.builder import graph
 from fastapi import FastAPI, Request
 import uvicorn
 
-from utils import to_printable
+from src.utils import to_printable
 
 app = FastAPI()
 
-# In-memory store for chat histories
-
-chat_histories = {}
+# 不再需要独立的chat_histories，使用LangGraph的checkpointer来管理会话记忆
 
 
 @app.get("/api/datasets/list")
@@ -52,21 +50,23 @@ async def chat_with_llm(chat_request: ChatRequest):
     if not message:
         return json.dumps({"error": "Message not provided"}), 400
 
-    # Retrieve history or create a new one
-    history = chat_histories.setdefault(session_id, [])
-    history.append(
-        HumanMessage(content=message),
-    )
-
     async def event_stream():
         """An async generator function to stream responses."""
-        init_state = {"messages": HumanMessage(content=message), "todos": []}
+        # 使用会话ID作为thread_id来关联LangGraph的记忆
+        config = {"configurable": {"thread_id": session_id}}
+
+        # 获取历史状态或创建新的初始状态
+        init_state = {"messages": [HumanMessage(content=message)], "todos": []}
+
         # The `stream` method returns a generator of events as they occur.
-        async for state in graph.astream(input=init_state, stream_mode="values"):
+        # 使用config参数来启用记忆功能
+        async for state in graph.astream(
+            input=init_state, config=config, stream_mode="values"
+        ):
             data_to_send = {"session_id": session_id}
+
             # Check for messages and get the last one's content
             if state.get("messages"):
-                chat_histories[session_id] = state["messages"]
                 last_message = state["messages"][-1]
                 if hasattr(last_message, "content"):
                     data_to_send["message"] = last_message.content
@@ -78,7 +78,7 @@ async def chat_with_llm(chat_request: ChatRequest):
             # Only send an event if there's a message to send
             if data_to_send.get("message"):
                 print(f"state: {json.dumps(to_printable(state))}")
-                # Format as a Server-Sent Event (SSE) with a JSON payload
+                # Format as a Server-Sent Event (SSE) with JSON payload
                 yield f"data: {json.dumps(data_to_send, ensure_ascii=False)}\n\n"
 
     # Return a streaming response.
@@ -88,10 +88,20 @@ async def chat_with_llm(chat_request: ChatRequest):
 @app.get("/api/chat/history/{session_id}")
 def get_chat_history(session_id: str):
     """
-    Retrieves the chat history for a given session ID.
+    Retrieves the chat history for a given session ID using LangGraph的记忆功能.
     """
-    history = chat_histories.get(session_id, [])
-    return {"session_id": session_id, "history": to_printable(history)}
+    try:
+        # 使用会话ID从LangGraph的checkpointer中获取历史记录
+        config = {"configurable": {"thread_id": session_id}}
+        state = graph.get_state(config)
+
+        if state and state.values:
+            messages = state.values.get("messages", [])
+            return {"session_id": session_id, "history": to_printable(messages)}
+        else:
+            return {"session_id": session_id, "history": []}
+    except Exception as e:
+        return {"session_id": session_id, "history": [], "error": str(e)}
 
 
 def main():
