@@ -386,3 +386,185 @@ with performance_monitor():
 4. **支持自定义扩展**：可以创建自己的上下文管理器
 
 在实际开发中，应该优先使用`with`语句来处理文件、网络连接、数据库连接等需要显式清理的资源。
+
+## 附录：MongoDB查询语法与应用
+
+在项目中，`get_collection_data`函数使用了`query`参数来过滤MongoDB集合中的数据。下面详细介绍如何编写MongoDB查询条件，以及如何在本项目中应用。
+
+### 一、MongoDB查询基础
+
+MongoDB查询条件是一个JSON文档，用于指定过滤条件。基本语法如下：
+
+```python
+query = {字段名: 值}
+```
+
+### 二、常见查询操作符
+
+#### 1. 比较操作符
+
+| 操作符 | 描述 | 示例 |
+|-------|------|------|
+| `$eq` | 等于 | `{"name": {"$eq": "Alice"}}` |
+| `$ne` | 不等于 | `{"status": {"$ne": "inactive"}}` |
+| `$gt` | 大于 | `{"age": {"$gt": 18}}` |
+| `$gte` | 大于等于 | `{"score": {"$gte": 90}}` |
+| `$lt` | 小于 | `{"price": {"$lt": 50}}` |
+| `$lte` | 小于等于 | `{"quantity": {"$lte": 10}}` |
+
+#### 2. 逻辑操作符
+
+| 操作符 | 描述 | 示例 |
+|-------|------|------|
+| `$and` | 逻辑与 | `{"$and": [{"age": {"$gt": 18}}, {"status": "active"}]}` |
+| `$or` | 逻辑或 | `{"$or": [{"status": "active"}, {"priority": "high"}]}` |
+| `$not` | 逻辑非 | `{"age": {"$not": {"$gt": 18}}}` |
+| `$nor` | 逻辑与非 | `{"$nor": [{"status": "inactive"}, {"priority": "low"}]}` |
+
+#### 3. 数组操作符
+
+| 操作符 | 描述 | 示例 |
+|-------|------|------|
+| `$in` | 在指定数组内 | `{"category": {"$in": ["electronics", "clothing"]}}` |
+| `$nin` | 不在指定数组内 | `{"status": {"$nin": ["inactive", "deleted"]}}` |
+| `$all` | 包含所有指定元素 | `{"tags": {"$all": ["python", "mongodb"]}}` |
+| `$size` | 数组长度等于 | `{"comments": {"$size": 3}}` |
+
+#### 4. 元素操作符
+
+| 操作符 | 描述 | 示例 |
+|-------|------|------|
+| `$exists` | 字段存在 | `{"email": {"$exists": True}}` |
+| `$type` | 字段类型匹配 | `{"age": {"$type": "int"}}` |
+
+### 三、在项目中的应用示例
+
+根据项目中的`mongodb.py`文件，我们可以为`get_collection_data`函数编写各种查询条件。以下是基于MongoDB示例数据集`sample_mflix`的实用查询示例：
+
+#### 1. 基本查询
+
+```python
+# 查询所有评论
+query = {}
+results = get_collection_data('sample_mflix', 'comments', query=query, limit=5)
+
+# 查询特定电影的评论
+query = {"movie_id": "573a1390f29313caabcd4135"}
+results = get_collection_data('sample_mflix', 'comments', query=query)
+
+# 查询特定用户的评论
+query = {"name": "Samwell Tarly"}
+results = get_collection_data('sample_mflix', 'comments', query=query)
+```
+
+#### 2. 条件查询
+
+```python
+# 查询评分高于7的评论
+query = {"rating": {"$gte": 7}}
+results = get_collection_data('sample_mflix', 'comments', query=query, limit=10)
+
+# 查询2020年之后的评论
+query = {"date": {"$gte": "2020-01-01"}}
+results = get_collection_data('sample_mflix', 'comments', query=query)
+
+# 查询评论内容包含特定关键词的评论
+query = {"text": {"$regex": "amazing", "$options": "i"}}  # 不区分大小写
+results = get_collection_data('sample_mflix', 'comments', query=query)
+```
+
+#### 3. 组合查询
+
+```python
+# 查询评分高于8且2021年之后的评论
+query = {
+    "$and": [
+        {"rating": {"$gte": 8}},
+        {"date": {"$gte": "2021-01-01"}}
+    ]
+}
+results = get_collection_data('sample_mflix', 'comments', query=query)
+
+# 查询特定用户的评论或高评分评论
+query = {
+    "$or": [
+        {"name": "Samwell Tarly"},
+        {"rating": {"$gte": 9}}
+    ]
+}
+results = get_collection_data('sample_mflix', 'comments', query=query)
+```
+
+#### 4. 使用排序和限制
+
+```python
+# 查询最新的10条评论
+query = {}
+sort = [("date", -1)]  # 按日期降序排列
+results = get_collection_data('sample_mflix', 'comments', query=query, limit=10, sort=sort)
+
+# 查询评分最高的5条评论
+query = {"rating": {"$gte": 1}}
+sort = [("rating", -1)]
+results = get_collection_data('sample_mflix', 'comments', query=query, limit=5, sort=sort)
+```
+
+### 四、高级查询技巧
+
+#### 1. 嵌套文档查询
+
+如果文档中包含嵌套结构，可以使用点号表示法：
+
+```python
+# 假设文档结构: {"user": {"name": "John", "age": 30}}
+query = {"user.age": {"$gte": 25}}
+```
+
+#### 2. 使用正则表达式
+
+```python
+# 查询名字以"S"开头的用户的评论
+query = {"name": {"$regex": "^S"}}
+
+# 查询文本中包含"excellent"或"amazing"的评论
+query = {"text": {"$regex": "excellent|amazing", "$options": "i"}}
+```
+
+#### 3. 数组字段查询
+
+```python
+# 假设文档有一个tags数组字段
+query = {"tags": "action"}  # 包含action标签的文档
+
+# 查询同时包含多个标签的文档
+query = {"tags": {"$all": ["action", "adventure"]}}
+```
+
+### 五、与with语句结合使用
+
+在实际项目中，可以将MongoDB查询与with语句结合使用，确保资源正确管理：
+
+```python
+from pymongo.mongo_client import MongoClient
+from contextlib import contextmanager
+
+@contextmanager
+def get_mongo_connection(uri):
+    """创建MongoDB连接的上下文管理器"""
+    client = MongoClient(uri)
+    try:
+        yield client
+    finally:
+        client.close()
+
+# 使用示例
+with get_mongo_connection("mongodb+srv://nan_admin:nan_admin@nanmongodb.smmoxzz.mongodb.net/") as client:
+    db = client['sample_mflix']
+    # 执行查询
+    query = {"rating": {"$gte": 8}}
+    comments = db['comments'].find(query).limit(10)
+    for comment in comments:
+        print(comment['text'])
+```
+
+通过这些示例和技巧，您可以灵活地编写MongoDB查询条件，从集合中检索所需的数据。在实际应用中，可以根据具体的数据结构和查询需求，组合使用各种查询操作符，构建复杂的查询条件。
