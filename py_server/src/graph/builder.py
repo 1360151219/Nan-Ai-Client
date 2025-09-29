@@ -4,12 +4,16 @@ This module defines the state and the graph for a simple chatbot.
 
 from typing import Annotated, Sequence
 from langgraph.graph import StateGraph
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.store.memory import InMemoryStore
 from src.modals.chat_modal import chat_modal
 from langgraph.graph.message import MessagesState
-from langgraph.checkpoint.memory import InMemorySaver
+
 from pydantic import Field
 
-checkpointer = InMemorySaver()
+
+store = InMemoryStore()
+memory_saver = InMemorySaver()
 
 
 class State(MessagesState):
@@ -35,21 +39,20 @@ def chatbot(state: State):
     }
 
 
-# Create a new StateGraph with our custom State class
-workflow = StateGraph(State)
+def build_graph() -> StateGraph:
+    # Create a new StateGraph with our custom State class
+    workflow = StateGraph(State)
 
-# Add a node named "chatbot" that executes the `chatbot` function
-workflow.add_node("chatbot", chatbot)
+    # Add a node named "chatbot" that executes the `chatbot` function
+    workflow.add_node("chatbot", chatbot)
 
-# Set the entry point of the graph to the "chatbot" node
-workflow.set_entry_point("chatbot")
+    # Set the entry point of the graph to the "chatbot" node
+    workflow.set_entry_point("chatbot")
+    workflow.add_edge("chatbot", "__end__")
+    graph = workflow.compile(checkpointer=memory_saver)
+    return graph
 
-# After the "chatbot" node runs, the graph should end.
-# The conversation loop will be handled by the main application logic.
-workflow.add_edge("chatbot", "__end__")
-
-# Compile the workflow into a runnable graph
-graph = workflow.compile(checkpointer=checkpointer)
 
 if __name__ == "__main__":
+    graph = build_graph()
     print(graph.get_graph().draw_mermaid_png(output_file_path="researcher.png"))

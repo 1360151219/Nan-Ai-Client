@@ -1,15 +1,17 @@
 import mimetypes
+import os
 import uuid
 from textwrap import indent
 from typing import Optional
 from fastapi.responses import StreamingResponse
 from fastapi.routing import json
+from langgraph.checkpoint.mongodb.aio import AsyncMongoDBSaver
 from langchain_core.messages import BaseMessage, HumanMessage
 from pydantic import BaseModel
 from src.agents.run_agent import run_agent, run_agent_api
 from src.agents.researcher import researcher
 from src.coze.rag import list_datasets
-from src.graph.builder import graph
+from src.graph.builder import build_graph
 
 from fastapi import FastAPI, Request
 import uvicorn
@@ -17,6 +19,8 @@ import uvicorn
 from src.utils import to_printable
 
 app = FastAPI()
+
+graph = build_graph()
 
 # 不再需要独立的chat_histories，使用LangGraph的checkpointer来管理会话记忆
 
@@ -44,6 +48,8 @@ async def chat_with_llm(chat_request: ChatRequest):
     chatbot, and streams the response back to the client using Server-Sent Events (SSE).
     It leverages asynchronous programming to handle the streaming efficiently.
     """
+
+    checkpoint_url = os.getenv("MONGODB_URI")
     message = chat_request.message
     session_id = chat_request.session_id or str(uuid.uuid4())
 
@@ -52,34 +58,34 @@ async def chat_with_llm(chat_request: ChatRequest):
 
     async def event_stream():
         """An async generator function to stream responses."""
-        # 使用会话ID作为thread_id来关联LangGraph的记忆
-        config = {"configurable": {"thread_id": session_id}}
+        async with AsyncMongoDBSaver.from_conn_string(checkpoint_url) as checkpointer:
+            graph.checkpointer = checkpointer
+            # 使用会话ID作为thread_id来关联LangGraph的记忆
+            config = {"configurable": {"thread_id": session_id}}
 
-        # 获取历史状态或创建新的初始状态
-        init_state = {"messages": [HumanMessage(content=message)], "todos": []}
+            # 获取历史状态或创建新的初始状态
+            init_state = {"messages": [HumanMessage(content=message)], "todos": []}
+            # The `stream` method returns a generator of events as they occur.
+            # 使用config参数来启用记忆功能
+            async for state in graph.astream(
+                input=init_state, config=config, stream_mode="values"
+            ):
+                data_to_send = {"session_id": session_id}
+                # Check for messages and get the last one's content
+                if state.get("messages"):
+                    last_message = state["messages"][-1]
+                    if hasattr(last_message, "content"):
+                        data_to_send["message"] = last_message.content
 
-        # The `stream` method returns a generator of events as they occur.
-        # 使用config参数来启用记忆功能
-        async for state in graph.astream(
-            input=init_state, config=config, stream_mode="values"
-        ):
-            data_to_send = {"session_id": session_id}
+                # Check for and include the todos list
+                if state.get("todos"):
+                    data_to_send["todos"] = state["todos"]
 
-            # Check for messages and get the last one's content
-            if state.get("messages"):
-                last_message = state["messages"][-1]
-                if hasattr(last_message, "content"):
-                    data_to_send["message"] = last_message.content
-
-            # Check for and include the todos list
-            if state.get("todos"):
-                data_to_send["todos"] = state["todos"]
-
-            # Only send an event if there's a message to send
-            if data_to_send.get("message"):
-                print(f"state: {json.dumps(to_printable(state))}")
-                # Format as a Server-Sent Event (SSE) with JSON payload
-                yield f"data: {json.dumps(data_to_send, ensure_ascii=False)}\n\n"
+                # Only send an event if there's a message to send
+                if data_to_send.get("message"):
+                    print(f"state: {json.dumps(to_printable(state))}")
+                    # Format as a Server-Sent Event (SSE) with JSON payload
+                    yield f"data: {json.dumps(data_to_send, ensure_ascii=False)}\n\n"
 
     # Return a streaming response.
     return StreamingResponse(event_stream(), media_type="text/event-stream")
