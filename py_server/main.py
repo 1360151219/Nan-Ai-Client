@@ -13,11 +13,21 @@ from src.coze.rag import list_datasets
 from src.graph.builder import build_graph
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from src.utils import to_printable
 
 app = FastAPI()
+
+# 配置 CORS 中间件
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 允许所有来源，生产环境建议指定具体域名
+    allow_credentials=True,
+    allow_methods=["*"],  # 允许所有HTTP方法
+    allow_headers=["*"],  # 允许所有请求头
+)
 
 graph = build_graph()
 
@@ -76,6 +86,7 @@ async def chat_with_llm(chat_request: ChatRequest):
                     last_message = state["messages"][-1]
                     if hasattr(last_message, "content"):
                         data_to_send["message"] = last_message.content
+                        data_to_send["type"] = last_message.type
 
                 # Check for and include the todos list
                 if state.get("todos"):
