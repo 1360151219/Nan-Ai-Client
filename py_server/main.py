@@ -1,4 +1,3 @@
-import mimetypes
 import os
 import uuid
 from textwrap import indent
@@ -22,6 +21,12 @@ app = FastAPI()
 
 graph = build_graph()
 
+
+class ChatRequest(BaseModel):
+    message: str
+    session_id: Optional[str] = None
+
+
 # 不再需要独立的chat_histories，使用LangGraph的checkpointer来管理会话记忆
 
 
@@ -32,11 +37,6 @@ def list_all_datasets():
     # 将每个 dataset 对象转换为字典，以便进行 JSON 序列化
     datasets_json = [dataset.model_dump() for dataset in datasets]
     return json.dumps(datasets_json, indent=2)
-
-
-class ChatRequest(BaseModel):
-    message: str
-    session_id: Optional[str] = None
 
 
 @app.post("/api/chat")
@@ -92,20 +92,19 @@ async def chat_with_llm(chat_request: ChatRequest):
 
 
 @app.get("/api/chat/history/{session_id}")
-def get_chat_history(session_id: str):
+async def get_chat_history(session_id: str):
     """
     Retrieves the chat history for a given session ID using LangGraph的记忆功能.
     """
-    try:
-        # 使用会话ID从LangGraph的checkpointer中获取历史记录
-        config = {"configurable": {"thread_id": session_id}}
-        state = graph.get_state(config)
+    checkpoint_url = os.getenv("MONGODB_URI")
 
-        if state and state.values:
-            messages = state.values.get("messages", [])
-            return {"session_id": session_id, "history": to_printable(messages)}
-        else:
-            return {"session_id": session_id, "history": []}
+    try:
+        async with AsyncMongoDBSaver.from_conn_string(checkpoint_url) as checkpointer:
+            # 使用会话ID从LangGraph的checkpointer中获取历史记录
+            config = {"configurable": {"thread_id": session_id}}
+            messages = await checkpointer.aget_tuple(config)
+            history = messages.checkpoint.get("channel_values", {}).get("messages", [])
+            return {"session_id": session_id, "history": history}
     except Exception as e:
         return {"session_id": session_id, "history": [], "error": str(e)}
 
