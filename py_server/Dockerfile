@@ -11,9 +11,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # 设置uv和pip的国内镜像源
-RUN mkdir -p /root/.config/uv && \ 
-    echo '[sources]\npypi = "https://pypi.tuna.tsinghua.edu.cn/simple"' > /root/.config/uv/uv.toml && \ 
-    pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple || true
+RUN export UV_DEFAULT_INDEX="https://mirrors.aliyun.com/pypi/simple"
 
 # Pre-cache the application dependencies with increased timeout
 RUN --mount=type=cache,target=/root/.cache/uv \
