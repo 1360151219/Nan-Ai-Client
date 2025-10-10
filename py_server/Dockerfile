@@ -10,18 +10,23 @@ RUN apt-get update && apt-get install -y \
     
 WORKDIR /app
 
-# Pre-cache the application dependencies.
+# 设置uv和pip的国内镜像源
+RUN mkdir -p /root/.config/uv && \ 
+    echo '[sources]\npypi = "https://pypi.tuna.tsinghua.edu.cn/simple"' > /root/.config/uv/uv.toml && \ 
+    pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple || true
+
+# Pre-cache the application dependencies with increased timeout
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project
+    UV_HTTP_TIMEOUT=120 uv sync --locked --no-install-project
 
 # Copy the application into the container.
 COPY . /app
 
-# Install the application dependencies.
+# Install the application dependencies with increased timeout
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked
+    UV_HTTP_TIMEOUT=120 uv sync --locked
 
 EXPOSE 8000
 
