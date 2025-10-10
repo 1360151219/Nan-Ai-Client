@@ -17,14 +17,14 @@ RUN export UV_DEFAULT_INDEX="https://mirrors.aliyun.com/pypi/simple"
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    UV_HTTP_TIMEOUT=120 uv sync --locked --no-install-project
+    UV_HTTP_TIMEOUT=120 uv sync --frozen --no-install-project
 
 # Copy the application into the container.
 COPY . /app
 
 # Install the application dependencies with increased timeout
 RUN --mount=type=cache,target=/root/.cache/uv \
-    UV_HTTP_TIMEOUT=120 uv sync --locked
+    UV_HTTP_TIMEOUT=120 uv sync
 
 EXPOSE 8000
 
