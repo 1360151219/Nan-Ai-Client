@@ -110,7 +110,7 @@ this.childProcess?.stdin?.write(requestStr);
 }
 ```
 
-### 2. LLM 搭建
+### 2. 搭建一个 ReAct 智能体
 
 为了更加简单易懂，我准备使用基于 ReAct 的单智能体来进行模型搭建。
 
