@@ -106,7 +106,7 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
     const loadChatHistory = async () => {
       try {
         setIsLoadingHistory(true);
-        
+
         // 获取会话ID
         const sessionId = await getCurrentSessionId();
         if (!sessionId) {
@@ -116,10 +116,11 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
 
         // 请求历史消息
         const historyData = await getChatHistory(sessionId);
-        
+
         if (historyData.history && historyData.history.length > 0) {
           // 转换历史消息格式
-          const formattedMessages: ChatMessage[] = historyData.history.map(formatApiMessage);
+          const formattedMessages: ChatMessage[] =
+            historyData.history.map(formatApiMessage);
 
           // 如果有历史消息，替换默认消息
           if (formattedMessages.length > 0) {
@@ -140,59 +141,49 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
     if (message.trim()) {
       setMessage('');
       setIsTyping(true);
+      console.log('======start send message========');
 
       try {
         // 获取当前会话ID
         const sessionId = await getCurrentSessionId();
-        
+
         // 发送消息并获取SSE响应
-        const response = await sendChatMessage({
+        const eventSource = await sendChatMessage({
           message: message.trim(),
           session_id: sessionId || '',
         });
 
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-
-        if (!reader) {
+        if (!eventSource) {
           throw new Error('无法读取响应流');
         }
 
         // 读取SSE流
-        const readStream = async () => {
+        eventSource.addEventListener('message', async (event) => {
+          console.log('====event', event);
           try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) {
-                setIsTyping(false);
-                break;
-              }
+            const parsedData = parseSSEData(event);
+            if (parsedData) {
+              // 保存会话ID
+              await saveSessionId(parsedData.session_id);
 
-              const chunk = decoder.decode(value);
-              const lines = chunk.split('\n');
-              
-              for (const line of lines) {
-                const parsedData = parseSSEData(line);
-                if (parsedData) {
-                  // 保存会话ID
-                  await saveSessionId(parsedData.session_id);
-                  
-                  // 添加新消息
-                  const newMessage: ChatMessage = {
-                    id: (Date.now() + Math.random()).toString(),
-                    text: parsedData.message,
-                    isUser: parsedData.type === 'human',
-                    timestamp: new Date(),
-                  };
-                  
-                  setMessages((prev) => [...prev, newMessage]);
-                }
+              // 添加新消息
+              const newMessage: ChatMessage = {
+                id: (Date.now() + Math.random()).toString(),
+                text: parsedData.message,
+                isUser: parsedData.type === 'human',
+                timestamp: new Date(),
+              };
+
+              setMessages((prev) => [...prev, newMessage]);
+
+              if (parsedData.isDone) {
+                setIsTyping(false);
+                eventSource.removeAllEventListeners();
+                eventSource.close();
               }
             }
           } catch (error) {
             console.error('读取SSE流失败:', error);
-            setIsTyping(false);
-
             // 添加错误消息
             const errorMessage: ChatMessage = {
               id: (Date.now() + 1).toString(),
@@ -201,12 +192,12 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
               timestamp: new Date(),
             };
             setMessages((prev) => [...prev, errorMessage]);
-          } finally {
-            reader.releaseLock();
           }
-        };
-
-        readStream();
+        });
+        eventSource.addEventListener('close', () => {
+          eventSource.removeAllEventListeners();
+          eventSource.close();
+        });
       } catch (error) {
         console.error('发送消息失败:', error);
         setIsTyping(false);
@@ -417,7 +408,6 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
               multiline
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
-              onSubmitEditing={handleSend}
               blurOnSubmit={false}
             />
             {message.length > 0 && (

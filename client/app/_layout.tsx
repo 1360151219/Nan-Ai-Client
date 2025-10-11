@@ -22,7 +22,11 @@ export default function RootLayout() {
       <Stack>
         <Stack.Screen
           name="index"
-          options={{ title: '首页', headerBackVisible: false }}
+          options={{
+            title: '首页',
+            headerBackVisible: false,
+            headerShown: false,
+          }}
         />
         <Stack.Screen
           name="splash"

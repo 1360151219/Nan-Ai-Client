@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG, API_ENDPOINTS } from './config';
+import EventSource from 'react-native-sse';
 
 export interface ChatMessage {
   id: string;
@@ -34,10 +35,14 @@ export interface ChatStreamResponse {
 /**
  * 获取聊天历史记录
  */
-export const getChatHistory = async (sessionId: string): Promise<ChatHistoryResponse> => {
+export const getChatHistory = async (
+  sessionId: string
+): Promise<ChatHistoryResponse> => {
   try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.CHAT.HISTORY}/${sessionId}`);
-    
+    const response = await fetch(
+      `${API_CONFIG.BASE_URL}${API_ENDPOINTS.CHAT.HISTORY}/${sessionId}`
+    );
+
     if (!response.ok) {
       throw new Error(`获取历史消息失败: ${response.status}`);
     }
@@ -53,25 +58,19 @@ export const getChatHistory = async (sessionId: string): Promise<ChatHistoryResp
 /**
  * 发送聊天消息（SSE流式响应）
  */
-export const sendChatMessage = async (request: ChatRequest): Promise<Response> => {
-  try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.CHAT.SEND}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(request),
-    });
+export const sendChatMessage = (request: ChatRequest) => {
+  // 构建SSE连接URL
+  const url = new URL(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.CHAT.SEND}`);
+  // 创建EventSource实例
+  const eventSource = new EventSource(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
 
-    if (!response.ok) {
-      throw new Error(`发送消息失败: ${response.status}`);
-    }
-
-    return response;
-  } catch (error) {
-    console.error('发送聊天消息失败:', error);
-    throw error;
-  }
+  return eventSource;
 };
 
 /**
@@ -79,6 +78,10 @@ export const sendChatMessage = async (request: ChatRequest): Promise<Response> =
  */
 export const getCurrentSessionId = async (): Promise<string | null> => {
   return await AsyncStorage.getItem('session_id');
+};
+
+export const clearCurrentSessionId = async () => {
+  await AsyncStorage.removeItem('session_id');
 };
 
 /**
@@ -103,19 +106,17 @@ export const formatApiMessage = (apiMessage: ApiChatMessage): ChatMessage => {
 /**
  * 解析SSE数据
  */
-export const parseSSEData = (line: string): ChatStreamResponse | null => {
-  if (!line.startsWith('data: ')) {
-    return null;
-  }
-
-  const data = line.slice(6);
-  
-  if (data === '[DONE]') {
-    return null;
-  }
+export const parseSSEData = (
+  event: Record<string, any>
+): ChatStreamResponse | null => {
+  const { data } = event ?? {};
 
   try {
-    return JSON.parse(data);
+    const res = JSON.parse(data);
+    return {
+      ...res,
+      isDone: res?.todos?.every((todo) => todo.status === 'done'),
+    };
   } catch (error) {
     console.error('解析SSE数据失败:', error);
     return null;
