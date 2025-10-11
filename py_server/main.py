@@ -97,6 +97,7 @@ async def chat_with_llm(chat_request: ChatRequest):
                     print(f"state: {json.dumps(to_printable(state))}")
                     # Format as a Server-Sent Event (SSE) with JSON payload
                     yield f"data: {json.dumps(data_to_send, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({"type":"message_done"})}\n\n"
 
     # Return a streaming response.
     return StreamingResponse(event_stream(), media_type="text/event-stream")

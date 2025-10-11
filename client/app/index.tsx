@@ -159,9 +159,16 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
 
         // 读取SSE流
         eventSource.addEventListener('message', async (event) => {
-          console.log('====event', event);
           try {
             const parsedData = parseSSEData(event);
+            console.log('====event', parsedData);
+            const { type } = parsedData ?? {};
+            if (type === 'message_done') {
+              setIsTyping(false);
+              eventSource.removeAllEventListeners();
+              eventSource.close();
+              return;
+            }
             if (parsedData) {
               // 保存会话ID
               await saveSessionId(parsedData.session_id);
@@ -175,12 +182,6 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
               };
 
               setMessages((prev) => [...prev, newMessage]);
-
-              if (parsedData.isDone) {
-                setIsTyping(false);
-                eventSource.removeAllEventListeners();
-                eventSource.close();
-              }
             }
           } catch (error) {
             console.error('读取SSE流失败:', error);
