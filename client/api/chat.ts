@@ -29,7 +29,8 @@ export interface ChatRequest {
 export interface ChatStreamResponse {
   session_id: string;
   message: string;
-  type: 'human' | 'ai' | 'message_done';
+  type: 'message' | 'message_done';
+  send_type: 'human' | 'ai';
 }
 
 /**

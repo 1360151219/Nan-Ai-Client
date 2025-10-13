@@ -80,13 +80,13 @@ async def chat_with_llm(chat_request: ChatRequest):
             async for state in graph.astream(
                 input=init_state, config=config, stream_mode="values"
             ):
-                data_to_send = {"session_id": session_id}
+                data_to_send = {"session_id": session_id,"type": "message"}
                 # Check for messages and get the last one's content
                 if state.get("messages"):
                     last_message = state["messages"][-1]
                     if hasattr(last_message, "content"):
                         data_to_send["message"] = last_message.content
-                        data_to_send["type"] = last_message.type
+                        data_to_send["send_type"] = last_message.type
 
                 # Check for and include the todos list
                 if state.get("todos"):

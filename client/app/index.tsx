@@ -162,22 +162,24 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
           try {
             const parsedData = parseSSEData(event);
             console.log('====event', parsedData);
-            const { type } = parsedData ?? {};
+            const { type, send_type, session_id, message } = parsedData ?? {};
             if (type === 'message_done') {
               setIsTyping(false);
               eventSource.removeAllEventListeners();
               eventSource.close();
               return;
             }
-            if (parsedData) {
+            if (type === 'message') {
               // 保存会话ID
-              await saveSessionId(parsedData.session_id);
+              if (session_id) {
+                await saveSessionId(session_id);
+              }
 
               // 添加新消息
               const newMessage: ChatMessage = {
                 id: (Date.now() + Math.random()).toString(),
-                text: parsedData.message,
-                isUser: parsedData.type === 'human',
+                text: message || '',
+                isUser: send_type === 'human',
                 timestamp: new Date(),
               };
 
