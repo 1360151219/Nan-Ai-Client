@@ -97,28 +97,36 @@ def get_collection_data(
         return []
 
 
-# 测试连接并展示当前数据库和集合
-try:
-    # 获取数据库
-    # local_db = client.get_database("sample_mflix")
-    local_db = client.sample_mflix
+def insertSessionId(user_id: str, session_id: str):
+    """
+    插入会话ID到数据库（兼容旧版本）
+    推荐使用新的UserModel类进行用户会话管理
 
-    # 发送ping确认连接成功
-    client.admin.command("ping")
-    print("MongoDB连接成功!")
+    Args:
+        user_id: 用户ID
+        session_id: 会话ID
+    """
+    try:
+        # 获取数据库和集合
+        db = client.get_database("main")
+        collection = db["sessions"]
 
-    get_collection_data("sample_mflix", "comments")
+        # 插入文档（兼容旧格式）
+        collection.insert_one({"session_id": session_id})
 
-    # 示例2: 查看集合中的所有数据(限制返回10条)
-    # get_collection_data('main', 'test')
+        print(f"会话ID '{session_id}' 插入成功")
+        
+        # 同时更新到用户模型（如果存在）
+        try:
+            from .user_model import UserModel
+            user_model = UserModel()
+            user_model.add_session_to_user(user_id, session_id)
+            user_model.close_connection()
+            print(f"会话ID '{session_id}' 已关联到用户 '{user_id}'")
+        except Exception as e:
+            print(f"更新用户会话记录时出错: {e}")
 
-    # 示例3: 使用查询条件
-    # query = {"age": {"$gte": 18}}  # 查询age大于等于18的文档
-    # get_collection_data('main', 'test', query=query)
-
-    # 示例4: 限制返回数量和排序
-    # sort = [("created_at", -1)]  # 按created_at字段降序排序
-    # get_collection_data('main', 'test', limit=5, sort=sort)
-
-except Exception as e:
-    print(f"MongoDB连接错误: {e}")
+    except PyMongoError as e:
+        print(f"插入会话ID时出错: {e}")
+    except Exception as e:
+        print(f"未知错误: {e}")

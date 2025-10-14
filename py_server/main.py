@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi.responses import StreamingResponse
 from fastapi.routing import json
 from langgraph.checkpoint.mongodb.aio import AsyncMongoDBSaver
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage, message_chunk_to_message
 from pydantic import BaseModel
 from src.agents.run_agent import run_agent, run_agent_api
 from src.agents.researcher import researcher
@@ -77,27 +77,27 @@ async def chat_with_llm(chat_request: ChatRequest):
             init_state = {"messages": [HumanMessage(content=message)], "todos": []}
             # The `stream` method returns a generator of events as they occur.
             # 使用config参数来启用记忆功能
-            async for state in graph.astream(
-                input=init_state, config=config, stream_mode="values"
+            async for event, chunk in graph.astream(
+                input=init_state, config=config, stream_mode=["messages", "updates"]
             ):
-                data_to_send = {"session_id": session_id,"type": "message"}
-                # Check for messages and get the last one's content
-                if state.get("messages"):
-                    last_message = state["messages"][-1]
-                    if hasattr(last_message, "content"):
-                        data_to_send["message"] = last_message.content
-                        data_to_send["send_type"] = last_message.type
-
-                # Check for and include the todos list
-                if state.get("todos"):
-                    data_to_send["todos"] = state["todos"]
-
-                # Only send an event if there's a message to send
-                if data_to_send.get("message"):
-                    print(f"state: {json.dumps(to_printable(state))}")
-                    # Format as a Server-Sent Event (SSE) with JSON payload
+                langgraph_node = None
+                if event == "messages":
+                    message_chunk, metadata = chunk
+                    base_message = message_chunk_to_message(message_chunk)
+                    # for k, v in base_message:
+                    # print(k, v, getattr(base_message, k, v))
+                    langgraph_node = metadata.get("langgraph_node")
+                    data_to_send = {
+                        "session_id": session_id,
+                        "type": "message",
+                        "content": message_chunk.content,
+                        "send_type": getattr(base_message, "type", None),
+                    }
                     yield f"data: {json.dumps(data_to_send, ensure_ascii=False)}\n\n"
-            yield f"data: {json.dumps({"type":"message_done"})}\n\n"
+                if event == "updates" and langgraph_node:
+                    state = chunk[langgraph_node]
+
+            yield f"data: {json.dumps({'type': 'message_done'})}\n\n"
 
     # Return a streaming response.
     return StreamingResponse(event_stream(), media_type="text/event-stream")
@@ -119,6 +119,55 @@ async def get_chat_history(session_id: str):
             return {"session_id": session_id, "history": history}
     except Exception as e:
         return {"session_id": session_id, "history": [], "error": str(e)}
+
+
+# User API
+
+from src.db.user_model import UserModel
+
+user_model = UserModel()
+
+
+class AddSessionRequest(BaseModel):
+    """添加会话请求模型"""
+
+    session_id: str
+    user_id: str
+
+
+@app.post("/api/users/sessions/create")
+async def add_session_to_user(request: AddSessionRequest):
+    """
+    为用户添加会话ID
+
+    Args:
+        request: 包含会话ID和用户ID的请求
+
+    Returns:
+        操作结果
+    """
+
+    success = user_model.add_session_to_user(request.user_id, request.session_id)
+
+    if success:
+        return {"success": True, "message": "会话添加成功"}
+    else:
+        return {"success": False, "message": "会话添加失败"}
+
+
+@app.get("/api/users/sessions/{user_id}")
+async def get_user_sessions(user_id: str):
+    """
+    获取用户的所有会话ID
+
+    Args:
+        user_id: 用户ID
+
+    Returns:
+        包含用户会话ID的列表
+    """
+    sessions = user_model.get_user_sessions(user_id)
+    return {"sessions": sessions}
 
 
 def main():
