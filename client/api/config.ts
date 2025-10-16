@@ -18,4 +18,7 @@ export const API_ENDPOINTS = {
     SEND: '/chat',
     HISTORY: '/chat/history',
   },
+  USER: {
+    SESSIONS: '/user/sessions/:user_id',
+  },
 };

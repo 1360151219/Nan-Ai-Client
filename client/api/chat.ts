@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG, API_ENDPOINTS } from './config';
 import EventSource from 'react-native-sse';
+import { getApiPath } from './utils';
 
 export interface ChatMessage {
   id: string;
@@ -31,6 +32,13 @@ export interface ChatStreamResponse {
   message: string;
   type: 'message' | 'message_done';
   send_type: 'human' | 'ai';
+}
+
+export interface ChatSession {
+  /** session id */
+  id: string;
+  /** 智能体 id */
+  agent_id: string;
 }
 
 /**
@@ -75,13 +83,36 @@ export const sendChatMessage = (request: ChatRequest) => {
 };
 
 /**
+ * 获取当前用户的所有会话信息
+ */
+export const getChatSessions = async (
+  user_id?: string
+): Promise<ChatSession[]> => {
+  try {
+    const response = await fetch(
+      getApiPath(API_ENDPOINTS.USER.SESSIONS, { user_id: user_id || 'root' })
+    );
+
+    if (!response.ok) {
+      throw new Error(`getChatSessions失败: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('getChatSessions失败:', error);
+    throw error;
+  }
+};
+
+/**
  * 获取当前会话ID
  */
 export const getCurrentSessionId = async (): Promise<string | null> => {
   return await AsyncStorage.getItem('session_id');
 };
 
-export const clearCurrentSessionId = async () => {
+export const clearCurrentSessionId = async (): Promise<void> => {
   await AsyncStorage.removeItem('session_id');
 };
 
@@ -121,5 +152,64 @@ export const parseSSEData = (
   } catch (error) {
     console.error('解析SSE数据失败:', error);
     return null;
+  }
+};
+
+/**
+ * 保存会话信息
+ */
+export const saveSessionInfo = async (
+  sessionId: string,
+  title: string,
+  lastMessage: string,
+  messageCount: number
+): Promise<void> => {
+  const sessionInfo = {
+    title,
+    lastMessage,
+    updatedAt: new Date().toISOString(),
+    messageCount,
+  };
+  await AsyncStorage.setItem(
+    `session_${sessionId}`,
+    JSON.stringify(sessionInfo)
+  );
+};
+
+/**
+ * 获取所有会话
+ */
+export const getAllSessions = async (): Promise<ChatSession[]> => {
+  try {
+    const allKeys = await AsyncStorage.getAllKeys();
+    const sessionKeys = allKeys.filter((key) => key.startsWith('session_'));
+    const sessionData = await AsyncStorage.multiGet(sessionKeys);
+
+    const sessions: ChatSession[] = [];
+    for (const [key, value] of sessionData) {
+      if (value) {
+        try {
+          const sessionInfo = JSON.parse(value);
+          sessions.push({
+            id: key.replace('session_', ''),
+            title:
+              sessionInfo.title ||
+              `会话 ${key.replace('session_', '').substring(0, 8)}`,
+            lastMessage: sessionInfo.lastMessage,
+            updatedAt: new Date(sessionInfo.updatedAt || Date.now()),
+            messageCount: sessionInfo.messageCount || 0,
+          });
+        } catch (error) {
+          console.error('解析会话数据失败:', error);
+        }
+      }
+    }
+
+    // 按更新时间排序
+    sessions.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    return sessions;
+  } catch (error) {
+    console.error('获取会话列表失败:', error);
+    return [];
   }
 };

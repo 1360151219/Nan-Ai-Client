@@ -1,3 +1,4 @@
+import React, { useEffect, useRef, useState } from 'react';
 import { SafeAreaContainer } from '@/components/SafeAreaContainer';
 import {
   formatApiMessage,
@@ -14,7 +15,7 @@ import type { MainTabParamList } from '@/types/navigation';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useRef, useState } from 'react';
+import ChatSidebar from '@/components/ChatSidebar';
 
 import {
   ActivityIndicator,
@@ -86,6 +87,7 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({ visible }) => {
 };
 
 const ChatScreen: React.FC<Props> = ({ navigation }) => {
+  const [chatSessionBarVisible, setChatSessionBarVisible] = useState(false);
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -302,6 +304,11 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
+        {/* Sidebar */}
+        <ChatSidebar
+          visible={chatSessionBarVisible}
+          onClose={() => setChatSessionBarVisible(false)}
+        />
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -329,13 +336,18 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           </View>
 
-          {/* <TouchableOpacity style={styles.moreButton}>
+          <TouchableOpacity
+            style={styles.moreButton}
+            onPress={() => {
+              setChatSessionBarVisible(true);
+            }}
+          >
             <Ionicons
               name="ellipsis-horizontal"
               size={20}
               color={Colors.text}
             />
-          </TouchableOpacity> */}
+          </TouchableOpacity>
         </View>
 
         {/* Chat Messages */}
