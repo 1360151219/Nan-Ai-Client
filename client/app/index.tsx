@@ -8,6 +8,8 @@ import {
   saveSessionId,
   sendChatMessage,
 } from '@/api/chat';
+import EventSource from 'react-native-sse';
+
 import { Colors } from '@/constants/Colors';
 import { Layout } from '@/constants/Layout';
 import type { ChatMessage } from '@/types/chat';
@@ -16,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import ChatSidebar from '@/components/ChatSidebar';
+import { usePersistentFn } from '@/hooks/usePresistentFn';
 
 import {
   ActivityIndicator,
@@ -88,6 +91,7 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({ visible }) => {
 
 const ChatScreen: React.FC<Props> = ({ navigation }) => {
   const [chatSessionBarVisible, setChatSessionBarVisible] = useState(false);
+  /** 输入框内容 */
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -99,6 +103,10 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
       timestamp: new Date(Date.now() - 60000),
     },
   ]);
+  const currentMsgIdRef = useRef('');
+  const responseMessageRef = useRef('');
+  const eventSourceRef = useRef<EventSource>(null);
+
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const scrollViewRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
@@ -138,70 +146,96 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
 
     loadChatHistory();
   }, []);
+  const handleSseMessage = usePersistentFn(async (event) => {
+    try {
+      const parsedData = parseSSEData(event);
+      const { type, send_type, session_id, content } = parsedData ?? {};
+      if (type === 'message_done') {
+        setIsTyping(false);
+        eventSourceRef.current?.removeAllEventListeners();
+        eventSourceRef.current?.close();
+        return;
+      }
+      if (type === 'message') {
+        // 保存会话ID
+        if (session_id) {
+          await saveSessionId(session_id);
+        }
 
+        responseMessageRef.current += content;
+        console.log(
+          '====event',
+          messages,
+          currentMsgIdRef.current,
+          messages.some((item) => item.id === currentMsgIdRef.current)
+        );
+
+        if (messages.some((item) => item.id === currentMsgIdRef.current)) {
+          setMessages((prev) =>
+            prev.map((item) =>
+              item.id === currentMsgIdRef.current
+                ? { ...item, text: responseMessageRef.current }
+                : item
+            )
+          );
+        } else {
+          // 添加新消息
+          const newMessage: ChatMessage = {
+            id: currentMsgIdRef.current,
+            text: responseMessageRef.current,
+            isUser: send_type === 'human',
+            timestamp: new Date(),
+          };
+
+          setMessages((prev) => [...prev, newMessage]);
+        }
+      }
+    } catch (error) {
+      console.error('读取SSE流失败:', error);
+      // 添加错误消息
+      const errorMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        text: '抱歉，我遇到了一些问题，请稍后再试。',
+        isUser: false,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    }
+  });
   const handleSend = async () => {
     if (message.trim()) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + Math.random()).toString(),
+          text: message.trim(),
+          isUser: true,
+          timestamp: new Date(),
+        },
+      ]);
       setMessage('');
       setIsTyping(true);
-      console.log('======start send message========');
-
       try {
         // 获取当前会话ID
         const sessionId = await getCurrentSessionId();
 
         // 发送消息并获取SSE响应
-        const eventSource = await sendChatMessage({
+        eventSourceRef.current = await sendChatMessage({
           message: message.trim(),
           session_id: sessionId || '',
         });
 
-        if (!eventSource) {
+        if (!eventSourceRef.current) {
           throw new Error('无法读取响应流');
         }
 
+        currentMsgIdRef.current = (Date.now() + Math.random()).toString();
+        responseMessageRef.current = '';
         // 读取SSE流
-        eventSource.addEventListener('message', async (event) => {
-          try {
-            const parsedData = parseSSEData(event);
-            console.log('====event', parsedData);
-            const { type, send_type, session_id, message } = parsedData ?? {};
-            if (type === 'message_done') {
-              setIsTyping(false);
-              eventSource.removeAllEventListeners();
-              eventSource.close();
-              return;
-            }
-            if (type === 'message') {
-              // 保存会话ID
-              if (session_id) {
-                await saveSessionId(session_id);
-              }
-
-              // 添加新消息
-              const newMessage: ChatMessage = {
-                id: (Date.now() + Math.random()).toString(),
-                text: message || '',
-                isUser: send_type === 'human',
-                timestamp: new Date(),
-              };
-
-              setMessages((prev) => [...prev, newMessage]);
-            }
-          } catch (error) {
-            console.error('读取SSE流失败:', error);
-            // 添加错误消息
-            const errorMessage: ChatMessage = {
-              id: (Date.now() + 1).toString(),
-              text: '抱歉，我遇到了一些问题，请稍后再试。',
-              isUser: false,
-              timestamp: new Date(),
-            };
-            setMessages((prev) => [...prev, errorMessage]);
-          }
-        });
-        eventSource.addEventListener('close', () => {
-          eventSource.removeAllEventListeners();
-          eventSource.close();
+        eventSourceRef.current.addEventListener('message', handleSseMessage);
+        eventSourceRef.current.addEventListener('close', () => {
+          eventSourceRef.current?.removeAllEventListeners();
+          eventSourceRef.current?.close();
         });
       } catch (error) {
         console.error('发送消息失败:', error);
@@ -368,34 +402,37 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
               </View>
             ) : (
               <>
-                {messages.map((msg, index) => renderMessage(msg, index))}
-
-                {isTyping && (
-                  <View style={styles.messageWrapper}>
-                    <View
-                      style={[
-                        styles.messageContainer,
-                        styles.aiMessageContainer,
-                      ]}
-                    >
-                      <View style={styles.aiAvatar}>
-                        <LinearGradient
-                          colors={[Colors.primary, Colors.secondary]}
-                          style={styles.aiAvatar}
+                {messages.map((msg, index) => {
+                  if (isTyping && !Boolean(msg.text) && !msg.isUser) {
+                    return (
+                      <View style={styles.messageWrapper}>
+                        <View
+                          style={[
+                            styles.messageContainer,
+                            styles.aiMessageContainer,
+                          ]}
                         >
-                          <Ionicons
-                            name="chatbubble-ellipses"
-                            size={16}
-                            color={Colors.white}
-                          />
-                        </LinearGradient>
+                          <View style={styles.aiAvatar}>
+                            <LinearGradient
+                              colors={[Colors.primary, Colors.secondary]}
+                              style={styles.aiAvatar}
+                            >
+                              <Ionicons
+                                name="chatbubble-ellipses"
+                                size={16}
+                                color={Colors.white}
+                              />
+                            </LinearGradient>
+                          </View>
+                          <View style={styles.aiBubble}>
+                            <TypingIndicator visible={true} />
+                          </View>
+                        </View>
                       </View>
-                      <View style={styles.aiBubble}>
-                        <TypingIndicator visible={true} />
-                      </View>
-                    </View>
-                  </View>
-                )}
+                    );
+                  }
+                  return renderMessage(msg, index);
+                })}
               </>
             )}
           </ScrollView>
