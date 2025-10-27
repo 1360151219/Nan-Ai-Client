@@ -342,6 +342,11 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
         <ChatSidebar
           visible={chatSessionBarVisible}
           onClose={() => setChatSessionBarVisible(false)}
+          currentSessionId={null} // 可以根据实际情况传递当前会话ID
+          onSessionSelect={(sessionId) =>
+            console.log('Selected session:', sessionId)
+          }
+          onNewSession={() => console.log('Create new session')}
         />
         {/* Header */}
         <View style={styles.header}>
@@ -373,6 +378,7 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
           <TouchableOpacity
             style={styles.moreButton}
             onPress={() => {
+              console.log('====click open', chatSessionBarVisible);
               setChatSessionBarVisible(true);
             }}
           >
@@ -478,7 +484,7 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
             <Ionicons
               name="send"
               size={16}
-              color={message.trim() ? Colors.white : Colors.textSecondary}
+              color={message.trim() ? Colors.white : Colors.tertiary}
             />
           </TouchableOpacity>
         </View>
@@ -564,16 +570,16 @@ const styles = StyleSheet.create({
 
   messageWrapper: {
     marginBottom: Layout.spacing.lg,
+    paddingVertical: Layout.spacing.xs, // 添加垂直内边距，确保消息间隙统一
   },
 
   messageContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
   },
 
   userMessageContainer: {
-    flexDirection: 'row-reverse',
-    justifyContent: 'flex-start',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
   },
 
   aiMessageContainer: {
@@ -641,6 +647,7 @@ const styles = StyleSheet.create({
     fontSize: Layout.fontSize.xs,
     color: Colors.chat.timestamp,
     marginBottom: Layout.spacing.xs,
+    marginTop: Layout.spacing.sm, // 添加上边距，确保有时间戳时的整体间距一致
     textAlign: 'center',
   },
 

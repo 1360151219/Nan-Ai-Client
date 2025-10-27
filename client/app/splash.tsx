@@ -118,7 +118,7 @@ const SplashScreen: React.FC<SplashScreenProps> = () => {
           ]}
         >
           <LinearGradient
-            colors={[Colors.accent, Colors.secondary]}
+            colors={[Colors.tertiary, Colors.secondary]}
             style={styles.bubbleGradient}
           />
         </Animated.View>
@@ -134,7 +134,7 @@ const SplashScreen: React.FC<SplashScreenProps> = () => {
           ]}
         >
           <LinearGradient
-            colors={[Colors.primary, Colors.secondary, Colors.accent]}
+            colors={[Colors.primary, Colors.secondary, Colors.tertiary]}
             style={styles.logoBackground}
           >
             <Ionicons
@@ -224,7 +224,7 @@ const SplashScreen: React.FC<SplashScreenProps> = () => {
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={[Colors.primary, Colors.secondary, Colors.accent]}
+              colors={[Colors.primary, Colors.secondary, Colors.tertiary]}
               style={styles.startButtonGradient}
             >
               <Text style={styles.startButtonText}>开始对话</Text>

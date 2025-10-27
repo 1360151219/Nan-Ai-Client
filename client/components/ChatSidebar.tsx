@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getAllSessions, getChatSessions, saveSessionInfo } from '@/api/chat';
 import {
   View,
@@ -35,8 +35,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 }) => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const slideAnim = useState(new Animated.Value(-SIDEBAR_WIDTH))[0];
-  const overlayAnim = useState(new Animated.Value(0))[0];
+  const slideAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
+  const overlayAnim = useRef(new Animated.Value(0)).current;
 
   // 加载会话列表
   useEffect(() => {
@@ -47,6 +47,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
   // 动画效果
   useEffect(() => {
+    console.log('slideAnim', visible, slideAnim);
     if (visible) {
       Animated.parallel([
         Animated.timing(slideAnim, {
@@ -139,16 +140,24 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
     );
   };
 
-  if (!visible) return null;
+  // 不使用条件渲染，而是通过动画控制显示/隐藏，确保关闭动画能够完整执行
 
   return (
-    <View style={styles.container} pointerEvents="box-none">
+    <View
+      style={{
+        ...styles.container,
+        ...{
+          pointerEvents: visible ? 'auto' : 'none',
+        },
+      }}
+    >
       {/* 遮罩层 */}
       <Animated.View
         style={[
           styles.overlay,
           {
             opacity: overlayAnim,
+            pointerEvents: visible ? 'auto' : 'none',
           },
         ]}
       >

@@ -169,7 +169,7 @@ const OnboardingScreen: React.FC = () => {
             ]}
           >
             <LinearGradient
-              colors={[Colors.accent, Colors.secondary]}
+              colors={[Colors.tertiary, Colors.secondary]}
               style={styles.featureIcon}
             >
               <Ionicons
