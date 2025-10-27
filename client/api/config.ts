@@ -19,6 +19,6 @@ export const API_ENDPOINTS = {
     HISTORY: '/chat/history',
   },
   USER: {
-    SESSIONS: '/user/sessions/:user_id',
+    SESSIONS: '/users/sessions/:user_id',
   },
 };
